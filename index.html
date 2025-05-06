@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Cubo 3D Interactivo</title>
+  <style>
+    body {
+      margin: 0;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: #000;
+      perspective: 800px;
+      overflow: hidden;
+      touch-action: none;
+    }
+
+    .scene {
+      width: 200px;
+      height: 200px;
+      position: relative;
+      transform-style: preserve-3d;
+      transform: rotateX(0deg) rotateY(0deg);
+      transition: transform 0.2s ease-out;
+      will-change: transform;
+    }
+
+    .face {
+      position: absolute;
+      width: 200px;
+      height: 200px;
+      box-sizing: border-box;
+      background-size: cover;
+      background-position: center;
+      background-color: rgba(40, 40, 40, 0.7);
+      box-shadow: 
+        0 0 25px rgba(255, 255, 255, 0.3),
+        inset 0 0 30px rgba(255, 255, 255, 0.2);
+      transition: all 0.3s ease;
+    }
+
+    .face:hover {
+      border-color: rgba(255, 255, 255, 0.9);
+      box-shadow: 
+        0 0 40px rgba(255, 255, 255, 0.5),
+        inset 0 0 60px rgba(255, 255, 255, 0.3);
+      filter: brightness(1.3) contrast(1.2);
+    }
+
+    .front  { transform: rotateY(  0deg) translateZ(100px); }
+    .back   { transform: rotateY(180deg) translateZ(100px); }
+    .right  { transform: rotateY( 90deg) translateZ(100px); }
+    .left   { transform: rotateY(-90deg) translateZ(100px); }
+    .top    { transform: rotateX( 90deg) translateZ(100px); }
+    .bottom { transform: rotateX(-90deg) translateZ(100px); }
+
+    .face::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(
+        135deg,
+        rgba(255, 255, 255, 0.25) 0%,
+        rgba(255, 255, 255, 0.1) 50%,
+        rgba(255, 255, 255, 0.25) 100%
+      );
+      pointer-events: none;
+      mix-blend-mode: overlay;
+    }
+
+    /* Contenedor de botones vertical */
+    .controls {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 9999;
+    }
+
+    .control-btn {
+      width: 90px;
+      height: 90px;
+      cursor: pointer;
+      background-color: rgb(0, 0, 0);
+      border-radius: 50%;
+      padding: 5px;
+      transition: transform 0.2s;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .control-btn:hover {
+      transform: scale(1.1);
+    }
+
+    #resetButton {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      width: 60px;
+      height: 60px;
+      cursor: pointer;
+      z-index: 9999;
+      background-color: rgb(0, 0, 0);
+      border-radius: 50%;
+      padding: 5px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 40px;
+      color: white;
+      transition: transform 0.2s;
+    }
+
+    #resetButton:hover {
+      transform: scale(1.1);
+    }
+
+    #githubButton img,
+    #audioControl img,
+    #autoRotateButton img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      border-radius: 50%;
+    }
+
+    #autoRotateButton.active {
+      background-color: rgba(255, 255, 255, 0.2);
+      box-shadow: 0 0 15px rgba(255, 255, 255, 0.5);
+    }
+
+    @media (max-width: 768px) {
+      .controls {
+        top: 15px;
+        right: 15px;
+      }
+      
+      .control-btn {
+        width: 60px;
+        height: 60px;
+      }
+      
+      #resetButton {
+        top: 15px;
+        left: 15px;
+        width: 60px;
+        height: 60px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="scene" id="cube">
+    <div class="face front"  style="background-image: url('images/yy.jpeg');"></div>
+    <div class="face back"   style="background-image: url('images/dd.jpeg');"></div>
+    <div class="face right"  style="background-image: url('images/ss.jpeg');"></div>
+    <div class="face left"   style="background-image: url('images/hh.jpeg');"></div>
+    <div class="face top"    style="background-image: url('images/ff.jpeg');"></div>
+    <div class="face bottom" style="background-image: url('images/gg.jpeg');"></div>
+  </div>
+
+  <div id="resetButton">↻</div>
+  
+  <div class="controls">
+    <a id="githubButton" class="control-btn" href="https://github.com/lsrm1?tab=repositories" target="_blank">
+      <img src="images/mano.jpg" alt="GitHub">
+    </a>
+    <img id="audioControl" class="control-btn" src="images/icono.jpg" alt="Control de audio">
+    <div id="autoRotateButton" class="control-btn">
+      <img src="images/giro.jpg" alt="Rotación automática">
+    </div>
+  </div>
+
+  <audio id="backgroundAudio" loop>
+    <source src="images/555.mp3" type="images/mpeg">
+  </audio>
+
+  <script>
+    const cube = document.getElementById("cube");
+    const resetButton = document.getElementById("resetButton");
+    const autoRotateButton = document.getElementById("autoRotateButton");
+    let rotationX = 0, rotationY = 0;
+    let startX, startY;
+    let dragging = false;
+    let velocityX = 0, velocityY = 0;
+    let lastTime = 0;
+    const friction = 0.92;
+    const minVelocity = 0.01;
+    const inertiaFactor = 0.3;
+    let autoRotateActive = false;
+    let autoRotateId = null;
+    const autoRotateSpeedX = 0.3; // Velocidad de rotación en eje X
+    const autoRotateSpeedY = 0.5; // Velocidad de rotación en eje Y
+    
+    // Variables para el zoom
+    let initialDistance = null;
+    let baseScale = 1;
+    let currentScale = 1;
+    let startTouch1, startTouch2;
+    let animationId;
+
+    // Función para calcular distancia entre dos puntos táctiles
+    const getDistance = (touch1, touch2) => {
+      return Math.hypot(
+        touch2.clientX - touch1.clientX,
+        touch2.clientY - touch1.clientY
+      );
+    };
+
+    // Función para reiniciar la posición del cubo
+    const resetCube = () => {
+      stopAutoRotate();
+      cancelAnimationFrame(animationId);
+      rotationX = 0;
+      rotationY = 0;
+      velocityX = 0;
+      velocityY = 0;
+      currentScale = 1;
+      baseScale = 1;
+      updateCubeTransform();
+    };
+
+    // Función para manejar el inicio del arrastre
+    const onStart = (x, y) => {
+      if (autoRotateActive) return;
+      dragging = true;
+      startX = x;
+      startY = y;
+      velocityX = 0;
+      velocityY = 0;
+      cancelAnimationFrame(animationId);
+    };
+
+    // Función para manejar el movimiento durante el arrastre
+    const onMove = (x, y) => {
+      if (!dragging || autoRotateActive) return;
+      const deltaX = x - startX;
+      const deltaY = y - startY;
+      
+      velocityX = deltaX * inertiaFactor;
+      velocityY = deltaY * inertiaFactor;
+      
+      rotationY += deltaX * 0.5;
+      rotationX -= deltaY * 0.5;
+      updateCubeTransform();
+      
+      startX = x;
+      startY = y;
+    };
+
+    // Función para manejar el fin del arrastre
+    const onEnd = () => {
+      if (autoRotateActive) return;
+      dragging = false;
+      if (Math.abs(velocityX) > minVelocity || Math.abs(velocityY) > minVelocity) {
+        animate();
+      }
+    };
+
+    // Función para actualizar la transformación del cubo
+    const updateCubeTransform = () => {
+      cube.style.transform = `
+        scale(${currentScale})
+        rotateX(${rotationX}deg)
+        rotateY(${rotationY}deg)
+      `;
+    };
+
+    // Función de animación para la inercia
+    const animate = (timestamp = 0) => {
+      if (!dragging && !autoRotateActive) {
+        velocityX *= friction;
+        velocityY *= friction;
+        
+        if (Math.abs(velocityX) < minVelocity && Math.abs(velocityY) < minVelocity) {
+          velocityX = 0;
+          velocityY = 0;
+          return;
+        }
+        
+        rotationY += velocityX;
+        rotationX -= velocityY;
+        updateCubeTransform();
+      }
+      
+      animationId = requestAnimationFrame(animate);
+    };
+
+    // Función para rotación automática (ahora en ambos ejes)
+    const autoRotate = () => {
+      if (!autoRotateActive) return;
+      
+      rotationX += autoRotateSpeedX;
+      rotationY += autoRotateSpeedY;
+      updateCubeTransform();
+      
+      autoRotateId = requestAnimationFrame(autoRotate);
+    };
+
+    // Función para iniciar rotación automática
+    const startAutoRotate = () => {
+      if (autoRotateActive) return;
+      
+      autoRotateActive = true;
+      autoRotateButton.classList.add('active');
+      cancelAnimationFrame(animationId);
+      velocityX = 0;
+      velocityY = 0;
+      autoRotate();
+    };
+
+    // Función para detener rotación automática
+    const stopAutoRotate = () => {
+      if (!autoRotateActive) return;
+      
+      autoRotateActive = false;
+      autoRotateButton.classList.remove('active');
+      cancelAnimationFrame(autoRotateId);
+    };
+
+    // Función para alternar rotación automática
+    const toggleAutoRotate = () => {
+      if (autoRotateActive) {
+        stopAutoRotate();
+      } else {
+        startAutoRotate();
+      }
+    };
+
+    // Mouse events
+    cube.addEventListener("mousedown", e => {
+      e.preventDefault();
+      onStart(e.clientX, e.clientY);
+    });
+    
+    document.addEventListener("mousemove", e => {
+      e.preventDefault();
+      onMove(e.clientX, e.clientY);
+    });
+    
+    document.addEventListener("mouseup", e => {
+      e.preventDefault();
+      onEnd();
+    });
+
+    // Touch events
+    cube.addEventListener("touchstart", e => {
+      e.preventDefault();
+      if (autoRotateActive) return;
+      
+      if (e.touches.length === 1) {
+        const t = e.touches[0];
+        onStart(t.clientX, t.clientY);
+      } else if (e.touches.length === 2) {
+        startTouch1 = {
+          x: e.touches[0].clientX,
+          y: e.touches[0].clientY
+        };
+        startTouch2 = {
+          x: e.touches[1].clientX,
+          y: e.touches[1].clientY
+        };
+        initialDistance = getDistance(e.touches[0], e.touches[1]);
+        dragging = false;
+      }
+    });
+
+    cube.addEventListener("touchmove", e => {
+      e.preventDefault();
+      if (autoRotateActive) return;
+      
+      if (e.touches.length === 1 && !initialDistance) {
+        const t = e.touches[0];
+        onMove(t.clientX, t.clientY);
+      } else if (e.touches.length === 2) {
+        const currentDistance = getDistance(e.touches[0], e.touches[1]);
+        
+        if (initialDistance) {
+          const scale = currentDistance / initialDistance;
+          currentScale = Math.min(Math.max(baseScale * scale, 1), 3);
+          updateCubeTransform();
+        }
+        
+        // Rotación durante el zoom
+        const touch1 = e.touches[0];
+        const touch2 = e.touches[1];
+        
+        const midX = (touch1.clientX + touch2.clientX) / 2;
+        const midY = (touch1.clientY + touch2.clientY) / 2;
+        
+        if (startTouch1 && startTouch2) {
+          const deltaX = midX - (startTouch1.x + startTouch2.x) / 2;
+          const deltaY = midY - (startTouch1.y + startTouch2.y) / 2;
+          
+          rotationY += deltaX * 0.5;
+          rotationX -= deltaY * 0.5;
+          updateCubeTransform();
+        }
+        
+        startTouch1 = {
+          x: touch1.clientX,
+          y: touch1.clientY
+        };
+        startTouch2 = {
+          x: touch2.clientX,
+          y: touch2.clientY
+        };
+      }
+    });
+
+    cube.addEventListener("touchend", e => {
+      e.preventDefault();
+      if (autoRotateActive) return;
+      
+      if (e.touches.length === 0) {
+        onEnd();
+        if (initialDistance) {
+          baseScale = currentScale;
+          initialDistance = null;
+          startTouch1 = null;
+          startTouch2 = null;
+        }
+      } else if (e.touches.length === 1) {
+        initialDistance = null;
+        const t = e.touches[0];
+        onStart(t.clientX, t.clientY);
+      }
+    });
+
+    // Evento para el botón de reinicio
+    resetButton.addEventListener("click", resetCube);
+
+    // Evento para el botón de rotación automática
+    autoRotateButton.addEventListener("click", toggleAutoRotate);
+
+    // Control de audio
+    const audioControl = document.getElementById('audioControl');
+    const backgroundAudio = document.getElementById('backgroundAudio');
+    
+    const iconOff = "images/pause.jpg";
+    const iconOn = "images/icono.jpg";
+    
+    audioControl.addEventListener('click', function() {
+        if(backgroundAudio.paused) {
+            backgroundAudio.play()
+                .then(() => {
+                    audioControl.src = iconOn;
+                })
+                .catch(error => {
+                    console.error("Error al reproducir:", error);
+                });
+        } else {
+            backgroundAudio.pause();
+            audioControl.src = iconOff;
+        }
+    });
+
+    // Precargar imágenes para mejor rendimiento
+    window.addEventListener('load', () => {
+      const images = [
+        'images/yy.jpeg',
+        'images/ss.jpeg',
+        'images/dd.jpeg',
+        'images/ff.jpeg',
+        'images/hh.jpeg',
+        'images/gg.jpeg',
+        'images/mano.jpg',
+        'images/icono.jpg',
+        'images/giro.jpg',
+        'images/pause.jpg'
+      ];
+
+      images.forEach(img => {
+        new Image().src = img;
+      });
+    });
+  </script>
+</body>
+</html>
